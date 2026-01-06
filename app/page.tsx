@@ -8,8 +8,8 @@ import { MagicBar } from "@/components/magic-bar/MagicBar";
 import { LandingPage } from "@/components/LandingPage";
 import { EventDialog } from "@/components/calendar/EventDialog";
 import { TEvent, TCommand } from "@/types";
-import { createEvent } from "@/lib/calendar-utils";
-import { addHours, setHours, setMinutes } from "date-fns";
+import { createEvent, findAvailableTimeSlots } from "@/lib/calendar-utils";
+import { addHours, setHours, setMinutes, format, addDays } from "date-fns";
 import {
     useOptimisticEvents,
     supabaseEventToTEvent,
@@ -265,6 +265,84 @@ export default function Home() {
         console.log("=== COMMAND PARSED ===", command);
         console.log("Command date:", command.date?.toString());
         console.log("Command time:", command.time);
+
+        // Handle time-finding requests
+        if (command.action === "find") {
+            try {
+                const duration = command.duration || 120; // Default 2 hours for deep work
+                const title = command.title || "Deep Work Session";
+
+                // Find available time slots
+                const suggestions = findAvailableTimeSlots(events, duration, {
+                    startDate: new Date(),
+                    endDate: addDays(new Date(), 7), // Next 7 days
+                    preferredHours: { start: 9, end: 17 }, // 9am-5pm
+                    maxSuggestions: 5,
+                });
+
+                if (suggestions.length === 0) {
+                    toast.error("No available time slots found in the next 7 days");
+                    return;
+                }
+
+                // Show the top suggestion with all options
+                const topSuggestion = suggestions[0];
+                const formattedTime = format(topSuggestion.startTime, "EEEE, MMM d 'at' h:mm a");
+                
+                // Create a toast with buttons for the suggestions
+                const suggestionMessage = suggestions
+                    .slice(0, 3)
+                    .map((s, i) => `${i + 1}. ${format(s.startTime, "EEE MMM d, h:mm a")} - ${s.reason}`)
+                    .join("\n");
+
+                toast.success(
+                    `Best time: ${formattedTime}\n${topSuggestion.reason}\n\nOther options:\n${suggestionMessage}`,
+                    {
+                        duration: 10000,
+                        action: {
+                            label: "Schedule Top Pick",
+                            onClick: () => {
+                                // Create event at the suggested time
+                                const newEvent = createEvent(
+                                    title,
+                                    topSuggestion.startTime,
+                                    duration,
+                                    {
+                                        color: "#10b981",
+                                        description: `AI-suggested time: ${topSuggestion.reason}`,
+                                    }
+                                );
+
+                                // Add optimistically
+                                const cleanup = addEventOptimistically(newEvent);
+
+                                // Save to database if signed in
+                                if (user) {
+                                    const supabaseData = tEventToSupabaseEvent(newEvent);
+                                    insertManualEvent(supabaseData)
+                                        .then((savedEvent) => {
+                                            const realEvent = supabaseEventToTEvent(savedEvent);
+                                            confirmEvent(newEvent.id, realEvent);
+                                            toast.success("Event scheduled at AI-suggested time!");
+                                        })
+                                        .catch((error) => {
+                                            console.error("Error saving event:", error);
+                                            cleanup();
+                                            toast.error("Failed to create event");
+                                        });
+                                } else {
+                                    toast.success("Event added (sign in to save permanently)");
+                                }
+                            },
+                        },
+                    }
+                );
+            } catch (error) {
+                console.error("Error finding time:", error);
+                toast.error("Failed to find available time slots");
+            }
+            return;
+        }
 
         if (command.action === "schedule" || command.action === "block") {
             try {

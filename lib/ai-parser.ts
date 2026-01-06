@@ -12,7 +12,16 @@ export function parseCommand(input: string): TCommand | null {
     action = 'cancel';
   } else if (lowerInput.includes('reschedule') || lowerInput.includes('move')) {
     action = 'reschedule';
-  } else if (lowerInput.includes('find') || lowerInput.includes('show')) {
+  } else if (
+    lowerInput.includes('find me time') ||
+    lowerInput.includes('find time') ||
+    lowerInput.includes('when can i') ||
+    lowerInput.includes('suggest time') ||
+    lowerInput.includes('best time') ||
+    lowerInput.includes('available time') ||
+    lowerInput.includes('find') ||
+    lowerInput.includes('show')
+  ) {
     action = 'find';
   }
 

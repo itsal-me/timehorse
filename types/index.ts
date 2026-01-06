@@ -21,6 +21,12 @@ export interface TCommand {
     frequency: 'daily' | 'weekly' | 'monthly';
     day?: string;
   };
+  suggestedTimes?: Array<{
+    startTime: Date;
+    endTime: Date;
+    score: number;
+    reason: string;
+  }>;
 }
 
 export interface TWeekDay {

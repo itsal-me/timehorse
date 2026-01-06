@@ -57,7 +57,7 @@ export function MagicBar({ onCommandParsed }: MagicBarProps) {
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                placeholder="Schedule a 1-hour coffee with Sarah next Tuesday..."
+                                placeholder="Find me time for a 2-hour meeting with Sarah..."
                                 className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-base pr-4 bg-transparent placeholder:text-slate-400"
                                 disabled={isProcessing}
                             />
@@ -80,9 +80,9 @@ export function MagicBar({ onCommandParsed }: MagicBarProps) {
                     {/* Suggestions */}
                     <div className="px-4 pb-3 flex flex-wrap gap-2">
                         {[
+                            "Find me time for 2-hour deep dive on project X",
                             "Schedule meeting with team tomorrow at 2pm",
-                            "Block 2 hours for deep work",
-                            "Coffee with Sarah next Tuesday",
+                            "When can I schedule a 90-minute workshop?",
                         ].map((suggestion) => (
                             <button
                                 key={suggestion}
@@ -96,8 +96,7 @@ export function MagicBar({ onCommandParsed }: MagicBarProps) {
                 </div>
 
                 <div className="text-center mt-3 text-xs text-slate-500 dark:text-slate-400">
-                    Try: "Schedule a 1-hour meeting with John tomorrow at 3pm"
-                    or "Block Friday afternoon for focus time"
+                    Try: "Find me time for a 2-hour meeting" or "When can I schedule 90 minutes for deep work?"
                 </div>
             </div>
         </div>
