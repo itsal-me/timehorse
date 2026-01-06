@@ -7,10 +7,15 @@ import { createClient } from '@/lib/supabase/client';
 export async function signInWithGoogle() {
   const supabase = createClient();
   
+  // Use the current origin for redirect (works for both localhost and production)
+  const redirectUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}/auth/callback`
+    : '/auth/callback';
+  
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
+      redirectTo: redirectUrl,
       scopes: 'https://www.googleapis.com/auth/calendar',
       queryParams: {
         access_type: 'offline',
