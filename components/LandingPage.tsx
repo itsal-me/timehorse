@@ -32,7 +32,7 @@ export function LandingPage({ onSignIn }: LandingPageProps) {
 
                 <div className="relative container mx-auto px-6 py-20">
                     {/* Navigation */}
-                    <nav className="flex items-center justify-between mb-24">
+                    <nav className="flex items-center justify-between max-sm:justify-center mb-24">
                         <div className="flex items-center gap-3">
                             <div className="w-11 h-11 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-xl flex items-center justify-center shadow-md hover:shadow-lg transition-shadow overflow-hidden">
                                 <Image
@@ -54,7 +54,7 @@ export function LandingPage({ onSignIn }: LandingPageProps) {
                         </div>
                         <Button
                             onClick={onSignIn}
-                            className="bg-white hover:bg-gray-50 text-gray-700 dark:bg-white dark:hover:bg-gray-100 dark:text-gray-700 px-6 py-2.5 rounded-lg font-medium shadow-md hover:shadow-lg transition-all border border-gray-300 flex items-center gap-3"
+                            className="max-sm:hidden bg-white hover:bg-gray-50 text-gray-700 dark:bg-white dark:hover:bg-gray-100 dark:text-gray-700 px-6 py-2.5 rounded-lg font-medium shadow-md hover:shadow-lg transition-all border border-gray-300 flex items-center gap-3"
                         >
                             <svg
                                 width="18"
