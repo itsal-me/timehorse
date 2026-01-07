@@ -466,13 +466,13 @@ export default function Home() {
         return (
             <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 dark:from-gray-950 dark:to-slate-900">
                 <div className="text-center">
-                    <div className="flex items-center justify-center mx-auto mb-4 animate-pulse shadow-lg overflow-hidden">
+                    <div className="w-24 h-24 flex items-center justify-center mx-auto mb-4 animate-pulse shadow-lg overflow-hidden rounded-full bg-white dark:bg-slate-800 p-4">
                         <Image
                             src={Logo}
                             alt="TimeHorse Logo"
                             width={48}
                             height={48}
-                            className="object-contain"
+                            className="object-contain rounded-full"
                         />
                     </div>
                     <p className="text-slate-600 dark:text-slate-400 font-medium">
