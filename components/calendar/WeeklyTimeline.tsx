@@ -82,7 +82,7 @@ export function WeeklyTimeline({
                             className="h-9 px-4 rounded-lg hover:bg-blue-50 hover:border-blue-300 dark:hover:bg-blue-950/50 dark:hover:border-blue-800 font-medium transition-colors"
                         >
                             <Calendar className="h-4 w-4 mr-1" />
-                            <span className="hidden sm:inline">Today</span>
+                            <span>Today</span>
                         </Button>
                         <Button
                             variant="outline"
