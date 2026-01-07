@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { TEvent } from "@/types";
 import {
@@ -22,6 +22,7 @@ interface EventDialogProps {
     onOpenChange: (open: boolean) => void;
     onDelete: (eventId: string) => void;
     onUpdate: (eventId: string, updates: Partial<TEvent>) => void;
+    autoEdit?: boolean;
 }
 
 export function EventDialog({
@@ -30,9 +31,22 @@ export function EventDialog({
     onOpenChange,
     onDelete,
     onUpdate,
+    autoEdit = false,
 }: EventDialogProps) {
-    const [isEditing, setIsEditing] = useState(false);
+    const [isEditing, setIsEditing] = useState(autoEdit);
     const [editedTitle, setEditedTitle] = useState(event?.title || "");
+    const [editedStartTime, setEditedStartTime] = useState("");
+    const [editedEndTime, setEditedEndTime] = useState("");
+
+    // Auto-enable edit mode when autoEdit is true and dialog opens
+    useEffect(() => {
+        if (autoEdit && open && event) {
+            setIsEditing(true);
+            setEditedTitle(event.title);
+            setEditedStartTime(format(new Date(event.startTime), "HH:mm"));
+            setEditedEndTime(format(new Date(event.endTime), "HH:mm"));
+        }
+    }, [autoEdit, open, event]);
 
     if (!event) return null;
 
@@ -42,10 +56,61 @@ export function EventDialog({
         (endTime.getTime() - startTime.getTime()) / (1000 * 60)
     );
 
+    // Initialize time values when entering edit mode
+    const handleStartEdit = () => {
+        setIsEditing(true);
+        setEditedStartTime(format(startTime, "HH:mm"));
+        setEditedEndTime(format(endTime, "HH:mm"));
+    };
+
     const handleSave = () => {
+        const updates: Partial<TEvent> = {};
+
+        // Update title if changed
         if (editedTitle.trim() && editedTitle !== event.title) {
-            onUpdate(event.id, { title: editedTitle.trim() });
+            updates.title = editedTitle.trim();
         }
+
+        // Update times if changed
+        if (editedStartTime || editedEndTime) {
+            const newStartTime = new Date(startTime);
+            const newEndTime = new Date(endTime);
+
+            if (editedStartTime) {
+                const [hours, minutes] = editedStartTime.split(":").map(Number);
+                newStartTime.setHours(hours, minutes, 0, 0);
+                updates.startTime = newStartTime;
+            }
+
+            if (editedEndTime) {
+                const [hours, minutes] = editedEndTime.split(":").map(Number);
+                newEndTime.setHours(hours, minutes, 0, 0);
+                updates.endTime = newEndTime;
+            }
+
+            // Validate that end time is after start time
+            if (updates.startTime && updates.endTime) {
+                if (updates.endTime <= updates.startTime) {
+                    toast.error("End time must be after start time");
+                    return;
+                }
+            } else if (updates.startTime && !updates.endTime) {
+                if (newEndTime <= updates.startTime) {
+                    toast.error("End time must be after start time");
+                    return;
+                }
+            } else if (!updates.startTime && updates.endTime) {
+                if (updates.endTime <= newStartTime) {
+                    toast.error("End time must be after start time");
+                    return;
+                }
+            }
+        }
+
+        if (Object.keys(updates).length > 0) {
+            onUpdate(event.id, updates);
+        }
+
         setIsEditing(false);
         onOpenChange(false);
     };
@@ -96,15 +161,39 @@ export function EventDialog({
                 <div className="space-y-5 py-2">
                     <div className="flex items-center gap-3 text-sm">
                         <Clock className="w-4 h-4 text-gray-500" />
-                        <div>
-                            <div className="font-medium">
-                                {format(startTime, "h:mm a")} -{" "}
-                                {format(endTime, "h:mm a")}
+                        {isEditing ? (
+                            <div className="flex-1 space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type="time"
+                                        value={editedStartTime}
+                                        onChange={(e) =>
+                                            setEditedStartTime(e.target.value)
+                                        }
+                                        className="flex-1"
+                                    />
+                                    <span className="text-gray-500">to</span>
+                                    <Input
+                                        type="time"
+                                        value={editedEndTime}
+                                        onChange={(e) =>
+                                            setEditedEndTime(e.target.value)
+                                        }
+                                        className="flex-1"
+                                    />
+                                </div>
                             </div>
-                            <div className="text-xs text-gray-500">
-                                {duration} minutes
+                        ) : (
+                            <div>
+                                <div className="font-medium">
+                                    {format(startTime, "h:mm a")} -{" "}
+                                    {format(endTime, "h:mm a")}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                    {duration} minutes
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-3 text-sm">
@@ -155,6 +244,8 @@ export function EventDialog({
                                     onClick={() => {
                                         setIsEditing(false);
                                         setEditedTitle(event.title);
+                                        setEditedStartTime("");
+                                        setEditedEndTime("");
                                     }}
                                     className="flex-1 sm:flex-none sm:min-w-[80px]"
                                 >
@@ -173,10 +264,10 @@ export function EventDialog({
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => setIsEditing(true)}
+                                    onClick={handleStartEdit}
                                     className="flex-1 sm:flex-none sm:min-w-[90px]"
                                 >
-                                    Edit Title
+                                    Edit Event
                                 </Button>
                                 <Button
                                     size="sm"

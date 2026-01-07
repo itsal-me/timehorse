@@ -45,6 +45,8 @@ export default function Home() {
     const [selectedEvent, setSelectedEvent] = useState<TEvent | null>(null);
     const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
     const [isProfileSheetOpen, setIsProfileSheetOpen] = useState(false);
+    const [isNewEvent, setIsNewEvent] = useState(false);
+    const [sessionExpired, setSessionExpired] = useState(false);
     const {
         events,
         addEventOptimistically,
@@ -322,6 +324,7 @@ export default function Home() {
 
     const handleEventClick = (event: TEvent) => {
         setSelectedEvent(event);
+        setIsNewEvent(false);
         setIsEventDialogOpen(true);
     };
 
@@ -365,6 +368,7 @@ export default function Home() {
 
         // Open dialog for immediate editing
         setSelectedEvent(newEvent);
+        setIsNewEvent(true);
         setIsEventDialogOpen(true);
 
         // Save to database if signed in
@@ -407,6 +411,15 @@ export default function Home() {
                         "Error deleting Google Calendar event:",
                         gcalError
                     );
+                    // Re-throw auth errors to trigger session expiry handling
+                    if (
+                        gcalError?.message?.includes("session") ||
+                        gcalError?.message?.includes("authenticated") ||
+                        gcalError?.message?.includes("expired") ||
+                        gcalError?.message?.includes("token")
+                    ) {
+                        throw gcalError;
+                    }
                     throw new Error(
                         "Failed to delete event from Google Calendar"
                     );
@@ -425,6 +438,17 @@ export default function Home() {
             toast.error(
                 error?.message || "Failed to delete event. Please try again."
             );
+
+            // Check for session expiry
+            if (
+                error?.message?.includes("session") ||
+                error?.message?.includes("authenticated") ||
+                error?.message?.includes("expired") ||
+                error?.message?.includes("token")
+            ) {
+                handleSessionExpiry();
+            }
+
             // Reload events to restore the deleted one
             if (user) {
                 try {
@@ -464,6 +488,15 @@ export default function Home() {
                         "Error updating Google Calendar event:",
                         gcalError
                     );
+                    // Re-throw auth errors to trigger session expiry handling
+                    if (
+                        gcalError?.message?.includes("session") ||
+                        gcalError?.message?.includes("authenticated") ||
+                        gcalError?.message?.includes("expired") ||
+                        gcalError?.message?.includes("token")
+                    ) {
+                        throw gcalError;
+                    }
                     throw new Error(
                         "Failed to update event in Google Calendar"
                     );
@@ -474,6 +507,11 @@ export default function Home() {
                 if (updates.title) supabaseUpdates.title = updates.title;
                 if (updates.description)
                     supabaseUpdates.description = updates.description;
+                if (updates.startTime)
+                    supabaseUpdates.start_time =
+                        updates.startTime.toISOString();
+                if (updates.endTime)
+                    supabaseUpdates.end_time = updates.endTime.toISOString();
                 if (updates.color) supabaseUpdates.color = updates.color;
                 if (updates.location)
                     supabaseUpdates.location = updates.location;
@@ -486,6 +524,17 @@ export default function Home() {
         } catch (error: any) {
             console.error("Error updating event:", error);
             toast.error(error?.message || "Failed to update event");
+
+            // Check for session expiry
+            if (
+                error?.message?.includes("session") ||
+                error?.message?.includes("authenticated") ||
+                error?.message?.includes("expired") ||
+                error?.message?.includes("token")
+            ) {
+                handleSessionExpiry();
+            }
+
             // Reload events to restore original state
             if (user) {
                 const supabaseEvents = await fetchUserEvents();
@@ -502,6 +551,7 @@ export default function Home() {
             // Clear user state immediately
             setUser(null);
             setRealEvents([]);
+            setSessionExpired(false);
 
             // Sign out from Supabase
             await signOut();
@@ -519,6 +569,21 @@ export default function Home() {
             // Still try to reload even if error
             window.location.href = "/";
         }
+    };
+
+    const handleSessionExpiry = () => {
+        setSessionExpired(true);
+        toast.error("Session expired. Please sign in again.", {
+            duration: Infinity,
+            action: {
+                label: "Sign Out",
+                onClick: () => {
+                    handleSignOut();
+                },
+            },
+        });
+        // Clear user state to trigger sign-in screen
+        setUser(null);
     };
 
     const handleCommandParsed = async (command: TCommand) => {
@@ -702,11 +767,10 @@ export default function Home() {
                     // Check if it's an auth error
                     if (
                         error.message?.includes("session") ||
-                        error.message?.includes("authenticated")
+                        error.message?.includes("authenticated") ||
+                        error.message?.includes("expired")
                     ) {
-                        toast.error("Session expired. Please sign in again.");
-                        // Clear user state to trigger sign-in
-                        setUser(null);
+                        handleSessionExpiry();
                     } else {
                         toast.error("Failed to save event. Please try again.");
                     }
@@ -748,6 +812,42 @@ export default function Home() {
     // Show calendar for logged-in users
     return (
         <main className="h-screen flex flex-col bg-gradient-to-br from-slate-50 to-blue-50/40 dark:from-gray-950 dark:to-slate-900">
+            {/* Session Expired Banner */}
+            {sessionExpired && (
+                <div className="bg-red-600 text-white px-6 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <svg
+                            className="w-5 h-5 flex-shrink-0"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                            />
+                        </svg>
+                        <div>
+                            <p className="font-semibold">Session Expired</p>
+                            <p className="text-sm opacity-90">
+                                Your session has expired. Please sign out and
+                                sign in again to continue.
+                            </p>
+                        </div>
+                    </div>
+                    <Button
+                        onClick={handleSignOut}
+                        variant="outline"
+                        size="sm"
+                        className="bg-white text-red-600 hover:bg-red-50 border-white"
+                    >
+                        Sign Out
+                    </Button>
+                </div>
+            )}
+
             {/* Header */}
             <header className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-700 shadow-sm">
                 {/* Main Header */}
@@ -836,9 +936,13 @@ export default function Home() {
             <EventDialog
                 event={selectedEvent}
                 open={isEventDialogOpen}
-                onOpenChange={setIsEventDialogOpen}
+                onOpenChange={(open) => {
+                    setIsEventDialogOpen(open);
+                    if (!open) setIsNewEvent(false);
+                }}
                 onDelete={handleEventDelete}
                 onUpdate={handleEventUpdate}
+                autoEdit={isNewEvent}
             />
 
             {/* Profile Sheet */}

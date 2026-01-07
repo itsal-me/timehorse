@@ -21,7 +21,7 @@ async function getCalendarHeaders() {
   } catch (error) {
     // Re-throw with more context
     if (error instanceof Error && error.message === 'No active session') {
-      throw new Error('Not authenticated with Google Calendar');
+      throw new Error('Session expired. Please sign in again.');
     }
     throw error;
   }
