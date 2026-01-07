@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
+import { createGoogleCalendarEvent, updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from '@/lib/google-calendar';
+import { TEvent } from '@/types';
 
 export interface SupabaseEvent {
   id?: string;
@@ -137,6 +139,32 @@ export async function updateEvent(
 ): Promise<SupabaseEvent> {
   const supabase = createClient();
 
+  // Get the current event to check for google_event_id
+  const { data: currentEvent } = await supabase
+    .from('events')
+    .select('google_event_id')
+    .eq('id', eventId)
+    .single();
+
+  // Update in Google Calendar if it has a google_event_id
+  if (currentEvent?.google_event_id) {
+    try {
+      const tEventUpdates: Partial<TEvent> = {};
+      if (updates.title) tEventUpdates.title = updates.title;
+      if (updates.description !== undefined) tEventUpdates.description = updates.description;
+      if (updates.start_time) tEventUpdates.startTime = new Date(updates.start_time);
+      if (updates.end_time) tEventUpdates.endTime = new Date(updates.end_time);
+      if (updates.color) tEventUpdates.color = updates.color;
+      if (updates.attendees) tEventUpdates.attendees = updates.attendees;
+      if (updates.location !== undefined) tEventUpdates.location = updates.location;
+      
+      await updateGoogleCalendarEvent(currentEvent.google_event_id, tEventUpdates);
+    } catch (error) {
+      console.warn('Failed to update Google Calendar event:', error);
+      // Continue anyway - we'll update locally
+    }
+  }
+
   const { data, error } = await supabase
     .from('events')
     .update(updates)
@@ -158,14 +186,47 @@ export async function updateEvent(
 export async function deleteEvent(eventId: string): Promise<void> {
   const supabase = createClient();
 
+  // Get the event to check for google_event_id before deleting
+  const { data: event, error: fetchError } = await supabase
+    .from('events')
+    .select('google_event_id')
+    .eq('id', eventId)
+    .single();
+
+  if (fetchError && fetchError.code !== 'PGRST116') {
+    // PGRST116 is "not found" error, which is ok
+    console.error('Error fetching event for deletion:', fetchError);
+    throw new Error(`Failed to fetch event: ${fetchError.message}`);
+  }
+
+  if (!event) {
+    console.warn(`Event ${eventId} not found in database, skipping deletion`);
+    return; // Event doesn't exist in database, nothing to delete
+  }
+
+  // Delete from Google Calendar if it has a google_event_id
+  if (event?.google_event_id) {
+    try {
+      await deleteGoogleCalendarEvent(event.google_event_id);
+    } catch (error) {
+      console.warn('Failed to delete Google Calendar event:', error);
+      // Continue anyway - we'll delete locally
+    }
+  }
+
   const { error } = await supabase
     .from('events')
     .delete()
     .eq('id', eventId);
 
   if (error) {
-    console.error('Error deleting event:', error);
-    throw error;
+    console.error('Error deleting event from database:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+    throw new Error(`Failed to delete event: ${error.message}`);
   }
 }
 
@@ -202,12 +263,32 @@ export async function insertManualEvent(
     throw new Error('User not authenticated. Please sign in again.');
   }
 
+  // Create event in Google Calendar first
+  let googleEventId: string | undefined;
+  try {
+    const tEvent: TEvent = {
+      id: '', // temporary, will be replaced
+      title: eventData.title,
+      description: eventData.description,
+      startTime: new Date(eventData.start_time),
+      endTime: new Date(eventData.end_time),
+      color: eventData.color,
+      attendees: eventData.attendees,
+      location: eventData.location,
+    };
+    googleEventId = await createGoogleCalendarEvent(tEvent);
+  } catch (error) {
+    console.warn('Failed to create Google Calendar event:', error);
+    // Continue anyway - we'll store it locally
+  }
+
   const { data, error } = await supabase
     .from('events')
     .insert([{
       ...eventData,
       user_id: user.id,
       source: 'manual',
+      google_event_id: googleEventId,
     }])
     .select()
     .single();
@@ -224,6 +305,16 @@ export async function insertManualEvent(
         source: 'manual'
       }
     });
+    
+    // If Supabase insert failed but Google Calendar succeeded, try to delete from Google Calendar
+    if (googleEventId) {
+      try {
+        await deleteGoogleCalendarEvent(googleEventId);
+      } catch (deleteError) {
+        console.error('Failed to cleanup Google Calendar event:', deleteError);
+      }
+    }
+    
     throw error;
   }
 

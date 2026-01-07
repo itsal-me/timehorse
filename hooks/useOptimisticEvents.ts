@@ -120,6 +120,7 @@ export function supabaseEventToTEvent(supabaseEvent: SupabaseEvent): TEvent {
     color: supabaseEvent.color,
     location: supabaseEvent.location,
     attendees: supabaseEvent.attendees,
+    googleEventId: supabaseEvent.google_event_id,
   };
 }
 
@@ -135,5 +136,6 @@ export function tEventToSupabaseEvent(event: TEvent): Omit<SupabaseEvent, 'id' |
     color: event.color,
     location: event.location,
     attendees: event.attendees,
+    google_event_id: event.googleEventId,
   };
 }

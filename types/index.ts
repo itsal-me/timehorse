@@ -7,6 +7,7 @@ export interface TEvent {
   color?: string;
   attendees?: string[];
   location?: string;
+  googleEventId?: string; // Google Calendar event ID for syncing
 }
 
 export interface TCommand {

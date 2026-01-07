@@ -24,6 +24,9 @@ CREATE INDEX IF NOT EXISTS events_start_time_idx ON events(start_time);
 -- Enable Row Level Security
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 
+-- Enable realtime replication for the events table
+ALTER TABLE events REPLICA IDENTITY FULL;
+
 -- Create policy: Users can only see their own events
 CREATE POLICY "Users can view own events"
   ON events FOR SELECT

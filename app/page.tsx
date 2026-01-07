@@ -22,6 +22,12 @@ import {
     deleteEvent as deleteSupabaseEvent,
 } from "@/lib/supabase/events";
 import { signInWithGoogle, getUser, signOut } from "@/lib/supabase/auth";
+import {
+    fetchGoogleCalendarEvents,
+    googleEventToTEvent,
+    syncGoogleCalendarChanges,
+} from "@/lib/google-calendar";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { LogOut, Sparkles, User } from "lucide-react";
 import Logo from "@/logo.png";
@@ -74,6 +80,160 @@ export default function Home() {
         loadUser();
     }, []);
 
+    // Set up realtime subscriptions and Google Calendar sync
+    useEffect(() => {
+        if (!user) return;
+
+        const supabase = createClient();
+
+        // Subscribe to Supabase realtime changes
+        const channel = supabase
+            .channel("events-changes")
+            .on(
+                "postgres_changes",
+                {
+                    event: "INSERT",
+                    schema: "public",
+                    table: "events",
+                    filter: `user_id=eq.${user.id}`,
+                },
+                (payload) => {
+                    console.log("New event inserted:", payload.new);
+                    const newEvent = supabaseEventToTEvent(payload.new as any);
+                    addEventOptimistically(newEvent);
+                    toast.success("New event synced");
+                }
+            )
+            .on(
+                "postgres_changes",
+                {
+                    event: "UPDATE",
+                    schema: "public",
+                    table: "events",
+                    filter: `user_id=eq.${user.id}`,
+                },
+                (payload) => {
+                    console.log("Event updated:", payload.new);
+                    const updatedEvent = supabaseEventToTEvent(
+                        payload.new as any
+                    );
+                    updateEvent(updatedEvent.id, updatedEvent);
+                    toast.success("✓ Event updated in your calendar");
+                }
+            )
+            .on(
+                "postgres_changes",
+                {
+                    event: "DELETE",
+                    schema: "public",
+                    table: "events",
+                    filter: `user_id=eq.${user.id}`,
+                },
+                (payload) => {
+                    console.log("Event deleted:", payload.old);
+                    removeEvent((payload.old as any).id);
+                    toast.success("✓ Event removed from your calendar");
+                }
+            )
+            .subscribe();
+
+        // Set up periodic Google Calendar sync (every 30 seconds)
+        const syncInterval = setInterval(async () => {
+            // Only sync if user is authenticated
+            if (!user) {
+                return;
+            }
+
+            try {
+                const {
+                    new: newEvents,
+                    updated,
+                    deleted,
+                } = await syncGoogleCalendarChanges(events);
+
+                // Add new events from Google Calendar
+                for (const newEvent of newEvents) {
+                    // Add to UI immediately (Google Calendar-only event with gcal- prefix)
+                    addEventOptimistically(newEvent);
+                }
+
+                // Update events that changed in Google Calendar
+                for (const updatedEvent of updated) {
+                    // Check if this is a Google Calendar-only event
+                    if (updatedEvent.id.startsWith("gcal-")) {
+                        // Just update in UI
+                        updateEvent(updatedEvent.id, updatedEvent);
+                    } else {
+                        // Update in Supabase (which will trigger realtime update)
+                        await updateSupabaseEvent(updatedEvent.id, {
+                            title: updatedEvent.title,
+                            description: updatedEvent.description,
+                            start_time: updatedEvent.startTime.toISOString(),
+                            end_time: updatedEvent.endTime.toISOString(),
+                            color: updatedEvent.color,
+                            attendees: updatedEvent.attendees,
+                        });
+                    }
+                }
+
+                // Delete events that were deleted in Google Calendar
+                for (const googleEventId of deleted) {
+                    const eventToDelete = events.find(
+                        (e) => e.googleEventId === googleEventId
+                    );
+                    if (eventToDelete) {
+                        if (eventToDelete.id.startsWith("gcal-")) {
+                            // Just remove from UI
+                            removeEvent(eventToDelete.id);
+                        } else {
+                            // Delete from Supabase (which will trigger realtime delete)
+                            await deleteSupabaseEvent(eventToDelete.id);
+                        }
+                    }
+                }
+
+                if (
+                    newEvents.length > 0 ||
+                    updated.length > 0 ||
+                    deleted.length > 0
+                ) {
+                    console.log(
+                        `Synced from Google Calendar: ${newEvents.length} new, ${updated.length} updates, ${deleted.length} deletions`
+                    );
+                    if (newEvents.length > 0) {
+                        toast.success(
+                            `📅 ${newEvents.length} new event${
+                                newEvents.length > 1 ? "s" : ""
+                            } synced from Google Calendar`
+                        );
+                    }
+                    if (updated.length > 0) {
+                        toast.info(
+                            `📅 ${updated.length} event${
+                                updated.length > 1 ? "s" : ""
+                            } updated from Google Calendar`
+                        );
+                    }
+                    if (deleted.length > 0) {
+                        toast.info(
+                            `📅 ${deleted.length} event${
+                                deleted.length > 1 ? "s" : ""
+                            } removed from Google Calendar`
+                        );
+                    }
+                }
+            } catch (error) {
+                console.error("Google Calendar sync failed:", error);
+            }
+        }, 30000); // 30 seconds
+
+        // Cleanup
+        return () => {
+            supabase.removeChannel(channel);
+            clearInterval(syncInterval);
+        };
+    }, [user, events]);
+
     const loadUser = async () => {
         try {
             const currentUser = await getUser();
@@ -86,7 +246,50 @@ export default function Home() {
                     const convertedEvents = supabaseEvents.map(
                         supabaseEventToTEvent
                     );
-                    setRealEvents(convertedEvents);
+
+                    // Try to fetch Google Calendar events
+                    try {
+                        const googleEvents = await fetchGoogleCalendarEvents(
+                            new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+                            new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) // 60 days ahead
+                        );
+
+                        // Convert Google Calendar events to TEvent
+                        const googleTEvents = googleEvents
+                            .map(googleEventToTEvent)
+                            .filter((e): e is TEvent => e !== null);
+
+                        // Filter out Google events that are already in Supabase (by googleEventId)
+                        const existingGoogleIds = new Set(
+                            convertedEvents
+                                .map((e) => e.googleEventId)
+                                .filter(Boolean)
+                        );
+
+                        const newGoogleEvents = googleTEvents.filter(
+                            (e) => !existingGoogleIds.has(e.googleEventId)
+                        );
+
+                        // Merge Supabase and new Google Calendar events
+                        const allEvents = [
+                            ...convertedEvents,
+                            ...newGoogleEvents,
+                        ];
+                        setRealEvents(allEvents);
+
+                        if (newGoogleEvents.length > 0) {
+                            console.log(
+                                `Loaded ${newGoogleEvents.length} events from Google Calendar`
+                            );
+                        }
+                    } catch (googleError) {
+                        console.warn(
+                            "Failed to fetch Google Calendar events:",
+                            googleError
+                        );
+                        // Just use Supabase events if Google Calendar fails
+                        setRealEvents(convertedEvents);
+                    }
                 } catch (eventError: any) {
                     console.error("Error loading events:", {
                         message: eventError?.message,
@@ -188,21 +391,51 @@ export default function Home() {
             // Remove optimistically
             removeEvent(eventId);
 
-            // Delete from database if signed in
-            if (user) {
+            // Check if this is a Google Calendar-only event (not in Supabase)
+            if (eventId.startsWith("gcal-")) {
+                // Extract the Google Calendar event ID
+                const googleEventId = eventId.replace("gcal-", "");
+
+                try {
+                    const { deleteGoogleCalendarEvent } = await import(
+                        "@/lib/google-calendar"
+                    );
+                    await deleteGoogleCalendarEvent(googleEventId);
+                    toast.success("✓ Event removed from Google Calendar");
+                } catch (gcalError: any) {
+                    console.error(
+                        "Error deleting Google Calendar event:",
+                        gcalError
+                    );
+                    throw new Error(
+                        "Failed to delete event from Google Calendar"
+                    );
+                }
+            } else if (user) {
+                // Delete from database (which also deletes from Google Calendar if synced)
                 await deleteSupabaseEvent(eventId);
-                toast.success("Event deleted successfully");
+                toast.success("✓ Event deleted successfully");
             }
         } catch (error: any) {
-            console.error("Error deleting event:", error);
-            toast.error("Failed to delete event");
+            console.error("Error deleting event:", {
+                message: error?.message,
+                stack: error?.stack,
+                error,
+            });
+            toast.error(
+                error?.message || "Failed to delete event. Please try again."
+            );
             // Reload events to restore the deleted one
             if (user) {
-                const supabaseEvents = await fetchUserEvents();
-                const convertedEvents = supabaseEvents.map(
-                    supabaseEventToTEvent
-                );
-                setRealEvents(convertedEvents);
+                try {
+                    const supabaseEvents = await fetchUserEvents();
+                    const convertedEvents = supabaseEvents.map(
+                        supabaseEventToTEvent
+                    );
+                    setRealEvents(convertedEvents);
+                } catch (reloadError) {
+                    console.error("Failed to reload events:", reloadError);
+                }
             }
         }
     };
@@ -215,8 +448,27 @@ export default function Home() {
             // Update optimistically
             updateEvent(eventId, updates);
 
-            // Update in database if signed in
-            if (user) {
+            // Check if this is a Google Calendar-only event
+            if (eventId.startsWith("gcal-")) {
+                // Extract the Google Calendar event ID
+                const googleEventId = eventId.replace("gcal-", "");
+
+                try {
+                    const { updateGoogleCalendarEvent } = await import(
+                        "@/lib/google-calendar"
+                    );
+                    await updateGoogleCalendarEvent(googleEventId, updates);
+                    toast.success("✓ Event updated in Google Calendar");
+                } catch (gcalError: any) {
+                    console.error(
+                        "Error updating Google Calendar event:",
+                        gcalError
+                    );
+                    throw new Error(
+                        "Failed to update event in Google Calendar"
+                    );
+                }
+            } else if (user) {
                 // Convert TEvent updates to Supabase format
                 const supabaseUpdates: any = {};
                 if (updates.title) supabaseUpdates.title = updates.title;
@@ -229,11 +481,11 @@ export default function Home() {
                     supabaseUpdates.attendees = updates.attendees;
 
                 await updateSupabaseEvent(eventId, supabaseUpdates);
-                toast.success("Event updated successfully");
+                toast.success("✓ Event updated successfully");
             }
         } catch (error: any) {
             console.error("Error updating event:", error);
-            toast.error("Failed to update event");
+            toast.error(error?.message || "Failed to update event");
             // Reload events to restore original state
             if (user) {
                 const supabaseEvents = await fetchUserEvents();
@@ -426,7 +678,9 @@ export default function Home() {
 
                         // Confirm the optimistic event with real data
                         confirmEvent(newEvent.id, realEvent);
-                        toast.success("Event created successfully!");
+                        toast.success(
+                            "✓ Event created and synced to Google Calendar"
+                        );
                     } else {
                         // If not logged in, just keep the optimistic event
                         toast.success(
