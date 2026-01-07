@@ -281,18 +281,29 @@ export default function Home() {
                 });
 
                 if (suggestions.length === 0) {
-                    toast.error("No available time slots found in the next 7 days");
+                    toast.error(
+                        "No available time slots found in the next 7 days"
+                    );
                     return;
                 }
 
                 // Show the top suggestion with all options
                 const topSuggestion = suggestions[0];
-                const formattedTime = format(topSuggestion.startTime, "EEEE, MMM d 'at' h:mm a");
-                
+                const formattedTime = format(
+                    topSuggestion.startTime,
+                    "EEEE, MMM d 'at' h:mm a"
+                );
+
                 // Create a toast with buttons for the suggestions
                 const suggestionMessage = suggestions
                     .slice(0, 3)
-                    .map((s, i) => `${i + 1}. ${format(s.startTime, "EEE MMM d, h:mm a")} - ${s.reason}`)
+                    .map(
+                        (s, i) =>
+                            `${i + 1}. ${format(
+                                s.startTime,
+                                "EEE MMM d, h:mm a"
+                            )} - ${s.reason}`
+                    )
                     .join("\n");
 
                 toast.success(
@@ -314,24 +325,41 @@ export default function Home() {
                                 );
 
                                 // Add optimistically
-                                const cleanup = addEventOptimistically(newEvent);
+                                const cleanup =
+                                    addEventOptimistically(newEvent);
 
                                 // Save to database if signed in
                                 if (user) {
-                                    const supabaseData = tEventToSupabaseEvent(newEvent);
+                                    const supabaseData =
+                                        tEventToSupabaseEvent(newEvent);
                                     insertManualEvent(supabaseData)
                                         .then((savedEvent) => {
-                                            const realEvent = supabaseEventToTEvent(savedEvent);
-                                            confirmEvent(newEvent.id, realEvent);
-                                            toast.success("Event scheduled at AI-suggested time!");
+                                            const realEvent =
+                                                supabaseEventToTEvent(
+                                                    savedEvent
+                                                );
+                                            confirmEvent(
+                                                newEvent.id,
+                                                realEvent
+                                            );
+                                            toast.success(
+                                                "Event scheduled at AI-suggested time!"
+                                            );
                                         })
                                         .catch((error) => {
-                                            console.error("Error saving event:", error);
+                                            console.error(
+                                                "Error saving event:",
+                                                error
+                                            );
                                             cleanup();
-                                            toast.error("Failed to create event");
+                                            toast.error(
+                                                "Failed to create event"
+                                            );
                                         });
                                 } else {
-                                    toast.success("Event added (sign in to save permanently)");
+                                    toast.success(
+                                        "Event added (sign in to save permanently)"
+                                    );
                                 }
                             },
                         },

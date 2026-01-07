@@ -96,7 +96,8 @@ export function MagicBar({ onCommandParsed }: MagicBarProps) {
                 </div>
 
                 <div className="text-center mt-3 text-xs text-slate-500 dark:text-slate-400">
-                    Try: "Find me time for a 2-hour meeting" or "When can I schedule 90 minutes for deep work?"
+                    Try: "Find me time for a 2-hour meeting" or "When can I
+                    schedule 90 minutes for deep work?"
                 </div>
             </div>
         </div>
