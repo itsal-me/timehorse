@@ -25,13 +25,19 @@ export function parseCommand(input: string): TCommand | null {
     action = 'find';
   }
 
-  // Duration extraction (e.g., "1 hour", "30 minutes", "2h", "90min")
-  const durationMatch = lowerInput.match(/(\d+)\s*(hour|hr|h|minute|min|m)/i);
+  // Duration extraction (e.g., "1 hour", "30 minutes", "2h", "90min", "half hour")
   let duration: number | undefined;
-  if (durationMatch) {
-    const value = parseInt(durationMatch[1]);
-    const unit = durationMatch[2].toLowerCase();
-    duration = unit.startsWith('h') ? value * 60 : value;
+  
+  // Check for "half hour" or "half an hour"
+  if (lowerInput.includes('half hour') || lowerInput.includes('half an hour')) {
+    duration = 30;
+  } else {
+    const durationMatch = lowerInput.match(/(\d+)\s*(hour|hr|h|minute|min|m)/i);
+    if (durationMatch) {
+      const value = parseInt(durationMatch[1]);
+      const unit = durationMatch[2].toLowerCase();
+      duration = unit.startsWith('h') ? value * 60 : value;
+    }
   }
 
   // Person extraction (with keywords like "with", "and")

@@ -277,7 +277,7 @@ export default function Home() {
         // Handle time-finding requests
         if (command.action === "find") {
             try {
-                const duration = command.duration || 120; // Default 2 hours for deep work
+                const duration = command.duration || 60; // Default 1 hour
                 const title = command.title || "Deep Work Session";
 
                 // Find available time slots
