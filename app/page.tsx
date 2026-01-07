@@ -23,14 +23,22 @@ import {
 } from "@/lib/supabase/events";
 import { signInWithGoogle, getUser, signOut } from "@/lib/supabase/auth";
 import { Button } from "@/components/ui/button";
-import { LogOut, Sparkles } from "lucide-react";
+import { LogOut, Sparkles, User } from "lucide-react";
 import Logo from "@/logo.png";
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetDescription,
+} from "@/components/ui/sheet";
 
 export default function Home() {
     const [user, setUser] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedEvent, setSelectedEvent] = useState<TEvent | null>(null);
     const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
+    const [isProfileSheetOpen, setIsProfileSheetOpen] = useState(false);
     const {
         events,
         addEventOptimistically,
@@ -487,58 +495,73 @@ export default function Home() {
     return (
         <main className="h-screen flex flex-col bg-gradient-to-br from-slate-50 to-blue-50/40 dark:from-gray-950 dark:to-slate-900">
             {/* Header */}
-            <header className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-700 px-6 py-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-xl flex items-center justify-center shadow-md hover:shadow-lg transition-shadow overflow-hidden">
-                            <Image
-                                src={Logo}
-                                alt="TimeHorse Logo"
-                                width={32}
-                                height={32}
-                                className="object-contain"
-                            />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-semibold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                                TimeHorse
-                            </h1>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                AI-Powered Calendar
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <div className="hidden md:flex items-center gap-2 bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 rounded-lg border border-indigo-200/50 dark:border-indigo-800/50">
-                            <Sparkles className="w-4 h-4" />
-                            <span className="text-xs font-medium">
-                                {user?.email}
-                            </span>
-                        </div>
-
-                        <div className="text-right hidden sm:block">
-                            <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                                {new Date().toLocaleDateString("en-US", {
-                                    weekday: "long",
-                                    month: "short",
-                                    day: "numeric",
-                                })}
+            <header className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-b border-slate-200 dark:border-slate-700 shadow-sm">
+                {/* Main Header */}
+                <div className="px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-xl flex items-center justify-center shadow-md hover:shadow-lg transition-shadow overflow-hidden">
+                                <Image
+                                    src={Logo}
+                                    alt="TimeHorse Logo"
+                                    width={32}
+                                    height={32}
+                                    className="object-contain"
+                                />
                             </div>
-                            <div className="text-xs text-slate-600 dark:text-slate-400">
-                                {events.length} events
+                            <div>
+                                <h1 className="text-2xl font-semibold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
+                                    TimeHorse
+                                </h1>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                    AI-Powered Calendar
+                                </p>
                             </div>
                         </div>
 
-                        <Button
-                            onClick={handleSignOut}
-                            variant="outline"
-                            size="sm"
-                            className="gap-2 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:hover:bg-red-950/50 dark:hover:text-red-400 dark:hover:border-red-800 transition-colors"
-                        >
-                            <LogOut className="h-4 w-4" />
-                            <span className="hidden sm:inline">Sign Out</span>
-                        </Button>
+                        <div className="flex items-center gap-4">
+                            {/* Desktop info */}
+                            <div className="hidden md:flex items-center gap-2 bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 rounded-lg border border-indigo-200/50 dark:border-indigo-800/50">
+                                <Sparkles className="w-4 h-4" />
+                                <span className="text-xs font-medium">
+                                    {user?.email}
+                                </span>
+                            </div>
+
+                            <div className="text-right hidden md:block">
+                                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                    {new Date().toLocaleDateString("en-US", {
+                                        weekday: "long",
+                                        month: "short",
+                                        day: "numeric",
+                                    })}
+                                </div>
+                                <div className="text-xs text-slate-600 dark:text-slate-400">
+                                    {events.length} events
+                                </div>
+                            </div>
+
+                            {/* Desktop Sign Out */}
+                            <Button
+                                onClick={handleSignOut}
+                                variant="outline"
+                                size="sm"
+                                className="hidden md:flex gap-2 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:hover:bg-red-950/50 dark:hover:text-red-400 dark:hover:border-red-800 transition-colors"
+                            >
+                                <LogOut className="h-4 w-4" />
+                                <span>Sign Out</span>
+                            </Button>
+
+                            {/* Mobile Profile Icon */}
+                            <Button
+                                onClick={() => setIsProfileSheetOpen(true)}
+                                variant="outline"
+                                size="sm"
+                                className="md:hidden rounded-full h-9 w-9 p-0"
+                            >
+                                <User className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -562,7 +585,73 @@ export default function Home() {
                 onOpenChange={setIsEventDialogOpen}
                 onDelete={handleEventDelete}
                 onUpdate={handleEventUpdate}
-            />{" "}
+            />
+
+            {/* Profile Sheet */}
+            <Sheet
+                open={isProfileSheetOpen}
+                onOpenChange={setIsProfileSheetOpen}
+            >
+                <SheetContent side="right">
+                    <SheetHeader>
+                        <SheetTitle>Profile</SheetTitle>
+                        <SheetDescription>
+                            Your account information and settings
+                        </SheetDescription>
+                    </SheetHeader>
+
+                    <div className="mt-8 space-y-6">
+                        {/* Email Section */}
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                <span>Email</span>
+                            </div>
+                            <div className="pl-6 text-sm text-slate-600 dark:text-slate-400 break-all">
+                                {user?.email}
+                            </div>
+                        </div>
+
+                        {/* Events Info Section */}
+                        <div className="space-y-2">
+                            <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Calendar Stats
+                            </div>
+                            <div className="pl-6 space-y-1">
+                                <div className="text-sm text-slate-600 dark:text-slate-400">
+                                    Total Events:{" "}
+                                    <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                        {events.length}
+                                    </span>
+                                </div>
+                                <div className="text-xs text-slate-500 dark:text-slate-500">
+                                    {new Date().toLocaleDateString("en-US", {
+                                        weekday: "long",
+                                        month: "long",
+                                        day: "numeric",
+                                        year: "numeric",
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Sign Out Button */}
+                        <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+                            <Button
+                                onClick={() => {
+                                    setIsProfileSheetOpen(false);
+                                    handleSignOut();
+                                }}
+                                variant="outline"
+                                className="w-full gap-2 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:hover:bg-red-950/50 dark:hover:text-red-400 dark:hover:border-red-800 transition-colors"
+                            >
+                                <LogOut className="h-4 w-4" />
+                                <span>Sign Out</span>
+                            </Button>
+                        </div>
+                    </div>
+                </SheetContent>
+            </Sheet>
         </main>
     );
 }
